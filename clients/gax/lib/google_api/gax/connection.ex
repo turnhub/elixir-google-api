@@ -33,7 +33,12 @@ defmodule GoogleApi.Gax.Connection do
         )
       )
 
-      plug(Tesla.Middleware.DecompressResponse, [])
+      # turnhub patch: Tesla 1.21 made :max_body_size mandatory on the
+      # (de)compression middleware (decompression-bomb CVE fix). Upstream
+      # elixir-google-api was archived (2026-06) before adopting it, so pin
+      # :infinity here to preserve the pre-1.21 behaviour. Remove once we migrate
+      # off this library (turnhub/engage Req+Goth migration).
+      plug(Tesla.Middleware.DecompressResponse, max_body_size: :infinity)
 
       plug(Tesla.Middleware.EncodeJson, engine: Poison)
 
