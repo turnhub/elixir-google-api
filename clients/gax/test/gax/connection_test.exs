@@ -84,6 +84,7 @@ defmodule Gax.ConnectionTest do
   test "builds a multipart upload request with iodata and content type" do
     metadata = %{contentType: "text/plain"}
     data = ["1", ["2"]]
+
     request =
       Request.new()
       |> Request.add_param(:body, :metadata, metadata)
@@ -94,13 +95,16 @@ defmodule Gax.ConnectionTest do
     [part1, part2] = body.parts
     assert "{\"contentType\":\"text/plain\"}" == part1.body
     assert [{:"Content-Type", "application/json"}] == part1.headers
+    assert [name: "metadata"] == part1.dispositions
     assert data == part2.body
     assert [{:"Content-Type", "text/plain"}] == part2.headers
+    assert [name: "data"] == part2.dispositions
   end
 
   test "builds a multipart upload request with iodata but no content type" do
     metadata = %{foo: "bar"}
     data = ["1", ["2"]]
+
     request =
       Request.new()
       |> Request.add_param(:body, :metadata, metadata)
@@ -118,6 +122,7 @@ defmodule Gax.ConnectionTest do
   test "builds a multipart upload request with a JSON decodable struct" do
     metadata = %{foo: "bar"}
     data = %{baz: "qux"}
+
     request =
       Request.new()
       |> Request.add_param(:body, :metadata, metadata)
@@ -135,6 +140,7 @@ defmodule Gax.ConnectionTest do
   test "builds a multipart upload request with a non-JSON struct" do
     metadata = %{foo: "bar"}
     data = %{baz: {}}
+
     assert_raise(Poison.EncodeError, fn ->
       Request.new()
       |> Request.add_param(:body, :metadata, metadata)
