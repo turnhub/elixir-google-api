@@ -33,7 +33,12 @@ defmodule GoogleApi.Gax.Connection do
         )
       )
 
-      plug(Tesla.Middleware.DecompressResponse, [])
+      # turnhub patch: Tesla 1.21 made :max_body_size mandatory on the
+      # (de)compression middleware (decompression-bomb CVE fix). Upstream
+      # elixir-google-api was archived (2026-06) before adopting it, so pin
+      # :infinity here to preserve the pre-1.21 behaviour. Remove once we migrate
+      # off this library (turnhub/engage Req+Goth migration).
+      plug(Tesla.Middleware.DecompressResponse, max_body_size: :infinity)
 
       plug(Tesla.Middleware.EncodeJson, engine: Poison)
 
@@ -167,7 +172,7 @@ defmodule GoogleApi.Gax.Connection do
   defp build_body(output, [], file_params) do
     body =
       Enum.reduce(file_params, Tesla.Multipart.new(), fn {file_name, file_path}, b ->
-        Tesla.Multipart.add_file(b, file_path, name: file_name)
+        Tesla.Multipart.add_file(b, file_path, name: to_string(file_name))
       end)
 
     Keyword.put(output, :body, body)
@@ -178,22 +183,27 @@ defmodule GoogleApi.Gax.Connection do
 
     {meta, body_params} = extract_metadata(body_params)
 
-    body = case meta do
-      nil -> body
-      _   -> Tesla.Multipart.add_field(
-        body,
-        :metadata,
-        Poison.encode!(meta),
-        headers: [{:"Content-Type", "application/json"}]
-      )
-    end
+    body =
+      case meta do
+        nil ->
+          body
+
+        _ ->
+          Tesla.Multipart.add_field(
+            body,
+            "metadata",
+            Poison.encode!(meta),
+            headers: [{:"Content-Type", "application/json"}]
+          )
+      end
 
     body =
       Enum.reduce(body_params, body, fn {body_name, data}, b ->
         {res, type} = try_encode_multipart_field(data, meta)
+
         Tesla.Multipart.add_field(
           b,
-          body_name,
+          to_string(body_name),
           res,
           headers: [{:"Content-Type", type}]
         )
@@ -201,7 +211,7 @@ defmodule GoogleApi.Gax.Connection do
 
     body =
       Enum.reduce(file_params, body, fn {file_name, file_path}, b ->
-        Tesla.Multipart.add_file(b, file_path, name: file_name)
+        Tesla.Multipart.add_file(b, file_path, name: to_string(file_name))
       end)
 
     Keyword.put(output, :body, body)
